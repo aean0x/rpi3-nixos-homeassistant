@@ -6,4 +6,5 @@
   sshUser = "admin";
   hashedPw = "$6$...";  # mkpasswd -m sha-512 output
   haPort = 8123;
+  repoUrl = "github:your/repo";
 }
