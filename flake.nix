@@ -26,6 +26,10 @@
       sshUser = secrets.sshUser;
       hashedPw = secrets.hashedPw;
       haPort = secrets.haPort or 8123;
+      repoUrl = secrets.repoUrl;
+      ipParts = builtins.split "/" secrets.staticIp;
+      ipAddr = (builtins.head ipParts).string;
+      prefixLen = pkgs.lib.toInt ((builtins.elemAt ipParts 1).string);
     };
   in {
     nixosConfigurations.rpi2 = nixpkgs.lib.nixosSystem {
@@ -42,7 +46,7 @@
           };
           networking = {
             hostName = vars.hostname;
-            interfaces.eth0.ipv4.addresses = [{ address = builtins.head (builtins.split "/" vars.staticIp); prefixLength = builtins.elemAt (builtins.split "/" vars.staticIp) 2; }];
+            interfaces.eth0.ipv4.addresses = [{ address = vars.ipAddr; prefixLength = vars.prefixLen; }];
             defaultGateway = vars.gateway;
             nameservers = [ vars.dns ];
           };
@@ -80,15 +84,13 @@
               #!/usr/bin/env bash
               set -euo pipefail
 
-              echo "Pulling latest flake from github:your/repo..."
-              nix flake update --flake github:your/repo#rpi2
+              echo "Pulling latest flake from github:${vars.repoUrl}..."
+              nix flake update --flake github:${vars.repoUrl}#rpi2
 
               echo "Rebuilding and switching..."
-              sudo nixos-rebuild switch --flake github:your/repo#rpi2
+              sudo nixos-rebuild switch --flake github:${vars.repoUrl}#rpi2
 
-              echo "Done. HA should be live at http://${vars.staticIp}:${toString vars.haPort}"
-              # Optional: restart HA if needed (rare)
-              # sudo systemctl restart home-assistant
+              echo "Done. HA should be live at http://${vars.ipAddr}:${toString vars.haPort}"
             '')
           ];
 
