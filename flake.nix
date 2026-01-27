@@ -45,30 +45,33 @@
                 ];
                 defaultGateway = vars.gateway;
                 nameservers = [ vars.dns ];
-                firewall.allowedTCPPorts = [ 1883 8081 ];
+                firewall.allowedTCPPorts = [
+                  1883 # Mosquitto MQTT
+                  8081 # Zigbee2MQTT frontend
+                ];
               };
+
               services.openssh = {
                 enable = true;
                 settings.PasswordAuthentication = true;
               };
+
               users.users.${vars.sshUser} = {
                 isNormalUser = true;
                 extraGroups = [ "wheel" ];
                 hashedPassword = vars.hashedPw;
               };
               security.sudo.wheelNeedsPassword = false;
+
+              # Home Assistant - default_config, met, esphome, rpi_power already included by module on ARM
               services.home-assistant = {
                 enable = true;
                 openFirewall = true;
                 extraComponents = [
-                  "default_config"
                   "matter"
                   "thread"
                   "otbr"
                   "zha"
-                  "met"
-                  "esphome"
-                  "rpi_power"
                   "mqtt"
                   "systemmonitor"
                   "uptime"
@@ -85,41 +88,51 @@
                   };
                 };
               };
+
+              # Mosquitto MQTT broker - no auth by default for local use
+              # To add auth: listeners = [{ users.myuser = { password = "secret"; acl = ["readwrite #"]; }; }];
               services.mosquitto = {
                 enable = true;
-                listeners = [ { address = "0.0.0.0"; } ];
-                # Add auth: users.${secrets.mqttUser} = { password = secrets.mqttPw; acl = ["readwrite #"]; };
+                listeners = [
+                  {
+                    acl = [ "pattern readwrite #" ];
+                    omitPasswordAuth = true;
+                    settings.allow_anonymous = true;
+                  }
+                ];
               };
+
+              # Zigbee2MQTT - homeassistant auto-enabled, permit_join=false, serial=/dev/ttyACM0 are defaults
               services.zigbee2mqtt = {
                 enable = true;
-                settings = {
-                  homeassistant = true;
-                  permit_join = false;
-                  serial.port = "/dev/ttyACM0";
-                  frontend = {
-                    enable = true;
-                    port = 8081;
-                  };
-                };
+                settings.frontend.port = 8081;
               };
+
+              # Tailscale VPN - run `tailscale up` after first boot to authenticate
               services.tailscale = {
                 enable = true;
                 openFirewall = true;
-                # authKeyFile = secrets.tailscaleKey or null;
               };
-              services.pi-hole = {
+
+              # Pi-hole DNS ad-blocking
+              services.pihole-ftl = {
                 enable = true;
-                openFirewall = true;
-                # adminPasswordFile = secrets.piholePwFile or null;
-                interfaces = [ "eth0" ];
-                dns.upstream = [ vars.dns ];
+                openFirewallDNS = true;
+                openFirewallWebserver = true;
+                settings.dns.upstreams = [ vars.dns ];
               };
+              services.pihole-web = {
+                enable = true;
+                ports = [ 80 ];
+              };
+
               system.autoUpgrade = {
                 enable = true;
                 allowReboot = true;
                 flake = "github:${vars.repoUrl}#rpi3";
                 dates = "Sun *-*-* 03:00:00";
               };
+
               systemd.timers.restart-services = {
                 wantedBy = [ "timers.target" ];
                 timerConfig = {
@@ -129,12 +142,14 @@
               };
               systemd.services.restart-services = {
                 script = ''
-                  systemctl restart home-assistant.service mosquitto.service zigbee2mqtt.service tailscale.service pi-hole.service || true
+                  systemctl restart home-assistant.service mosquitto.service zigbee2mqtt.service tailscaled.service pihole-ftl.service || true
                 '';
                 serviceConfig.Type = "oneshot";
               };
+
               boot.loader.generic-extlinux-compatible.configurationLimit = 3;
               boot.kernelParams = [ "dtparam=watchdog=on" ];
+
               environment.systemPackages = with pkgs; [
                 (writeShellScriptBin "rebuild" ''
                   #!/usr/bin/env bash
@@ -146,6 +161,7 @@
                   echo "Done. HA should be live at http://${vars.ipAddr}:${toString vars.haPort}"
                 '')
               ];
+
               system.stateVersion = "25.11";
             }
           )
