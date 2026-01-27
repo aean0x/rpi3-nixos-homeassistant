@@ -37,12 +37,12 @@ Copy and customize (this file is gitignored):
 
 ```bash
 nix build .#packages.aarch64-linux.sdImage
-# Output: result/sd-image/*.img
+# Output: result/sd-image/*.img.zst
 ```
 
 Flash to SD card:
 ```bash
-sudo dd if=result/sd-image/*.img of=/dev/sdX bs=4M status=progress
+zstdcat result/sd-image/*.zst | sudo dd of=/dev/sda bs=4M status=progress
 ```
 
 ### 3. Boot & Access
