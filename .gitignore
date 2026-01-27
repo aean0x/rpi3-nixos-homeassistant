@@ -4,6 +4,7 @@ secrets.nix
 # Nix build artifacts
 result
 result-*
+flake.lock
 
 # SD card images
 *.img

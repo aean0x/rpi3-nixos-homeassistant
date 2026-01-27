@@ -1,9 +1,8 @@
 {
-  description = "Minimal NixOS RPi2 Home Assistant Image";
+  description = "Minimal NixOS RPi3B Home Assistant Image";
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
   };
-
   outputs =
     {
       self,
@@ -11,11 +10,9 @@
       ...
     }:
     let
-      system = "armv7l-linux";
+      system = "aarch64-linux";
       pkgs = import nixpkgs { inherit system; };
       secrets = import ./secrets.nix;
-      # builtins.split returns [ "192.168.1.100" [ "/" ] "24" ]
-      # so index 0 is IP, index 2 is prefix length
       ipParts = builtins.split "/" secrets.staticIp;
       vars = {
         hostname = secrets.hostname;
@@ -31,18 +28,13 @@
       };
     in
     {
-      nixosConfigurations.rpi2 = nixpkgs.lib.nixosSystem {
+      nixosConfigurations.rpi3 = nixpkgs.lib.nixosSystem {
         inherit system;
         modules = [
-          "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-armv7l-multiplatform.nix"
+          "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
           (
             { ... }:
             {
-              # Allow broken packages (efivar is marked broken on armv7l)
-              nixpkgs.config.allowBroken = true;
-
-              # boot.kernelPackages and boot.loader are handled by sd-image-armv7l-multiplatform.nix
-              # which uses U-Boot and linuxPackages_latest (works for RPi2)
               networking = {
                 hostName = vars.hostname;
                 interfaces.eth0.ipv4.addresses = [
@@ -53,6 +45,7 @@
                 ];
                 defaultGateway = vars.gateway;
                 nameservers = [ vars.dns ];
+                firewall.allowedTCPPorts = [ 1883 8081 ];
               };
               services.openssh = {
                 enable = true;
@@ -64,73 +57,100 @@
                 hashedPassword = vars.hashedPw;
               };
               security.sudo.wheelNeedsPassword = false;
-
               services.home-assistant = {
                 enable = true;
                 openFirewall = true;
-                # Override default extraComponents to exclude default_config which pulls in
-                # Matter integration -> python-matter-server -> debugpy (not available on armv7l)
                 extraComponents = [
+                  "default_config"
+                  "matter"
+                  "thread"
+                  "otbr"
+                  "zha"
                   "met"
                   "esphome"
                   "rpi_power"
+                  "mqtt"
+                  "systemmonitor"
+                  "uptime"
+                  "glances"
+                  "pi_hole"
+                  "tailscale"
                 ];
                 config = {
                   http.server_port = vars.haPort;
                   logger.default = "info";
-                  # Core integrations (manually specified since we excluded default_config)
-                  automation = [ ];
-                  counter = { };
-                  frontend = { };
-                  history = { };
-                  input_boolean = { };
-                  input_button = { };
-                  input_datetime = { };
-                  input_number = { };
-                  input_select = { };
-                  input_text = { };
-                  logbook = { };
-                  person = { };
-                  scene = { };
-                  script = { };
-                  sun = { };
-                  system_health = { };
-                  tag = { };
-                  timer = { };
-                  zone = { };
+                  mqtt = {
+                    broker = "localhost";
+                    discovery = true;
+                  };
                 };
               };
-
+              services.mosquitto = {
+                enable = true;
+                listeners = [ { address = "0.0.0.0"; } ];
+                # Add auth: users.${secrets.mqttUser} = { password = secrets.mqttPw; acl = ["readwrite #"]; };
+              };
+              services.zigbee2mqtt = {
+                enable = true;
+                settings = {
+                  homeassistant = true;
+                  permit_join = false;
+                  serial.port = "/dev/ttyACM0";
+                  frontend = {
+                    enable = true;
+                    port = 8081;
+                  };
+                };
+              };
+              services.tailscale = {
+                enable = true;
+                openFirewall = true;
+                # authKeyFile = secrets.tailscaleKey or null;
+              };
+              services.pi-hole = {
+                enable = true;
+                openFirewall = true;
+                # adminPasswordFile = secrets.piholePwFile or null;
+                interfaces = [ "eth0" ];
+                dns.upstream = [ vars.dns ];
+              };
               system.autoUpgrade = {
                 enable = true;
                 allowReboot = true;
-                flake = "github:${vars.repoUrl}#rpi2";
+                flake = "github:${vars.repoUrl}#rpi3";
+                dates = "Sun *-*-* 03:00:00";
               };
-
-              # One-touch rebuild script in user's .local/bin
+              systemd.timers.restart-services = {
+                wantedBy = [ "timers.target" ];
+                timerConfig = {
+                  OnCalendar = "Sun *-*-* 03:30:00";
+                  Persistent = true;
+                };
+              };
+              systemd.services.restart-services = {
+                script = ''
+                  systemctl restart home-assistant.service mosquitto.service zigbee2mqtt.service tailscale.service pi-hole.service || true
+                '';
+                serviceConfig.Type = "oneshot";
+              };
+              boot.loader.generic-extlinux-compatible.configurationLimit = 3;
+              boot.kernelParams = [ "dtparam=watchdog=on" ];
               environment.systemPackages = with pkgs; [
                 (writeShellScriptBin "rebuild" ''
                   #!/usr/bin/env bash
                   set -euo pipefail
-
                   echo "Pulling latest flake from github:${vars.repoUrl}..."
                   nix flake update --flake github:${vars.repoUrl}
-
                   echo "Rebuilding and switching..."
-                  sudo nixos-rebuild switch --flake github:${vars.repoUrl}#rpi2
-
+                  sudo nixos-rebuild switch --flake github:${vars.repoUrl}#rpi3
                   echo "Done. HA should be live at http://${vars.ipAddr}:${toString vars.haPort}"
                 '')
               ];
-
               system.stateVersion = "25.11";
             }
           )
         ];
       };
-
-      # Build SD image using the native NixOS sdImage builder
-      # Usage: nix build .#sdImage
-      packages.${system}.sdImage = self.nixosConfigurations.rpi2.config.system.build.sdImage;
+      packages.${system}.sdImage = self.nixosConfigurations.rpi3.config.system.build.sdImage;
     };
 }
