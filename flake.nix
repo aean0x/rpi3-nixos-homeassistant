@@ -100,6 +100,14 @@
                 settings.PasswordAuthentication = true;
               };
 
+              # mDNS for hostname.local resolution
+              services.avahi = {
+                enable = true;
+                nssmdns4 = true;
+                publish.enable = true;
+                publish.addresses = true;
+              };
+
               users.users.${vars.sshUser} = {
                 isNormalUser = true;
                 extraGroups = [ "wheel" ];
