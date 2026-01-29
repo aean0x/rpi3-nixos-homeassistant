@@ -1,5 +1,5 @@
 # System settings - edit for your setup
-# Secrets (passwords, SSH keys) go in secrets/secrets.yaml
+# Secrets (passwords) go in secrets/secrets.yaml
 let
   repoUrl = "aean0x/rpi3-nixos-homeassistant"; # Format: "owner/repo"
   parts = builtins.split "/" repoUrl;
@@ -16,6 +16,13 @@ in
   # When true, allows password auth using hashedPassword from secrets/secrets.yaml
   # When false, only SSH key authentication is allowed
   allowPasswordAuth = false;
+
+  # SSH public keys for authentication (one per line)
+  # Get your key with: cat ~/.ssh/id_ed25519.pub
+  sshPubKeys = [
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICB8EtGX5PD1QPF/jrdd5G+fQy4tV2L3fhCY1dhZc4ep aean@nix-pc"
+    # "ssh-ed25519 AAAA... user@laptop"
+  ];
 
   # Repository coordinates (parsed from repoUrl)
   inherit repoUrl;

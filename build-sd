@@ -51,7 +51,7 @@ fi
 # Build SD image with key path for injection
 export KEY_FILE_PATH="$KEY_PATH"
 echo "Building SD card image..."
-nix build .#sdImage --impure
+nix build .#packages.aarch64-linux.sdImage --impure
 
 echo ""
 echo "SD image built successfully!"

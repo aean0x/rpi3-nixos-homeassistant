@@ -56,9 +56,9 @@
     description = settings.description;
     extraGroups = [ "wheel" ];
     # Password from SOPS (used when allowPasswordAuth is true)
-    hashedPasswordFile = config.sops.secrets."user.hashedPassword".path;
-    # SSH keys from SOPS (multi-line file with one key per line)
-    openssh.authorizedKeys.keyFiles = [ config.sops.secrets."user.pubKeys".path ];
+    hashedPasswordFile = config.sops.secrets.user_hashedPassword.path;
+    # SSH keys from settings.nix
+    openssh.authorizedKeys.keys = settings.sshPubKeys;
   };
 
   security.sudo.wheelNeedsPassword = false;
