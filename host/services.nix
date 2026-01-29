@@ -1,5 +1,6 @@
 # Service configurations for Home Assistant and related services
 {
+  config,
   settings,
   pkgs-otbr,
   ...
@@ -62,9 +63,25 @@
   # ===================
   # Tailscale VPN
   # ===================
+  # Generate auth key at: https://login.tailscale.com/admin/settings/keys
+  # Recommended: Reusable + Pre-authorized for declarative rebuilds
   services.tailscale = {
     enable = true;
     openFirewall = true;
+
+    # Auto-authenticate on first boot using SOPS-decrypted auth key
+    authKeyFile = config.sops.secrets.tailscale_authKey.path;
+
+    # Enable subnet routing (set to "server" to advertise routes, "client" to accept)
+    useRoutingFeatures = "server";
+
+    extraUpFlags = [
+      "--ssh"
+      "--accept-routes"
+      "--accept-dns"
+      "--advertise-routes=192.168.1.0/24"
+    ];
+
   };
 
   # ===================
