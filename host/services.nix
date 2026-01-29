@@ -36,31 +36,6 @@
   };
 
   # ===================
-  # Mosquitto MQTT Broker
-  # ===================
-  services.mosquitto = {
-    enable = true;
-    listeners = [
-      {
-        acl = [ "pattern readwrite #" ];
-        omitPasswordAuth = true;
-        settings.allow_anonymous = true;
-      }
-    ];
-  };
-
-  # # ===================
-  # # Zigbee2MQTT
-  # # ===================
-  # services.zigbee2mqtt = {
-  #   enable = true;
-  #   settings = {
-  #     frontend.port = settings.zigbee2mqttPort;
-  #     serial.port = settings.zigbeeRadioPath;
-  #   };
-  # };
-
-  # ===================
   # Tailscale VPN
   # ===================
   # Generate auth key at: https://login.tailscale.com/admin/settings/keys

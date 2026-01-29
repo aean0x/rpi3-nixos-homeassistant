@@ -26,8 +26,6 @@
     defaultGateway = settings.network.gateway;
     nameservers = [ settings.network.dns ];
     firewall.allowedTCPPorts = [
-      settings.mqttPort
-      settings.zigbee2mqttPort
     ];
   };
 
@@ -64,10 +62,33 @@
   security.sudo.wheelNeedsPassword = false;
 
   # ===================
+  # Swap & Memory (required for rebuilds on RPi3's limited RAM)
+  # ===================
+  # Disk swap for heavy operations (Nix rebuilds)
+  swapDevices = [
+    {
+      device = "/var/lib/swapfile";
+      size = 2048; # 2GB
+    }
+  ];
+
+  # zram for daily operation (compressed RAM swap, reduces SD card wear)
+  zramSwap = {
+    enable = true;
+    memoryPercent = 50; # Use up to 50% of RAM for zram
+    algorithm = "zstd"; # Good compression ratio
+  };
+
+  # ===================
   # Boot Configuration
   # ===================
   boot.loader.generic-extlinux-compatible.configurationLimit = 3;
   boot.kernelParams = [ "dtparam=watchdog=on" ];
+
+  # ===================
+  # Nix Configuration
+  # ===================
+  nix.settings.trusted-users = [ "root" "@wheel" ];
 
   system.stateVersion = settings.stateVersion;
 }

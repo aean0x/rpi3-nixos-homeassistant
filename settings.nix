@@ -40,14 +40,12 @@ in
 
   # Service ports
   haPort = 8123;
-  zigbee2mqttPort = 8081;
   otbrPort = 8081;
-  mqttPort = 1883;
 
   # Hardware
   # Find with: ls /dev/serial/by-id/
   # Example: /dev/serial/by-id/usb-Nabu_Casa_SkyConnect_v1.0_xxxxx-if00-port0
-  threadRadioPath = "/dev/serial/by-id/usb-your-thread-radio-id";
+  threadRadioPath = "/dev/serial/by-id/usb-Nabu_Casa_ZBT-2_DCB4D910EF08-if00";
   zigbeeRadioPath = "/dev/ttyACM0";
 
   # System
