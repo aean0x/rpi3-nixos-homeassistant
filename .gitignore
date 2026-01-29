@@ -1,10 +1,13 @@
-# Secrets - must exist locally for flake eval
+# Old secrets format (deprecated - now using SOPS)
 secrets.nix
+
+# SOPS age key (never commit private keys!)
+secrets/key.txt
+secrets/secrets.yaml.work
 
 # Nix build artifacts
 result
 result-*
-flake.lock
 
 # SD card images
 *.img
