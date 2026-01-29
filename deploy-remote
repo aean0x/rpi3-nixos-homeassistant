@@ -1,0 +1,212 @@
+#!/usr/bin/env bash
+# Build NixOS configuration on workstation and deploy to Raspberry Pi
+# Requires: aarch64-linux building capability (binfmt/qemu or remote builder)
+#
+# Usage:
+#   ./deploy-build              Build and switch
+#   ./deploy-build switch       Build and switch (default)
+#   ./deploy-build boot         Build and activate on next reboot
+#   ./deploy-build test         Build and activate temporarily (no boot entry)
+#   ./deploy-build dry-activate Build and show what would change
+#   ./deploy-build build        Build only (no deployment)
+
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+# Load settings
+HOST=$(grep -oP 'hostName\s*=\s*"\K[^"]+' settings.nix)
+USER=$(grep -oP 'adminUser\s*=\s*"\K[^"]+' settings.nix)
+IP=$(grep -oP 'address\s*=\s*"\K[^"]+' settings.nix)
+
+# Try hostname.local first, fall back to IP
+TARGET="${USER}@${HOST}.local"
+
+ACTION="${1:-switch}"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+info() { echo -e "${GREEN}==>${NC} $*"; }
+warn() { echo -e "${YELLOW}==> WARNING:${NC} $*"; }
+error() { echo -e "${RED}==> ERROR:${NC} $*" >&2; }
+
+usage() {
+    echo "Usage: $0 [action]"
+    echo ""
+    echo "Build NixOS on workstation and deploy to Raspberry Pi."
+    echo "Offloads heavy Nix evaluation from memory-constrained Pi."
+    echo ""
+    echo "Actions:"
+    echo "  switch       Build and switch immediately (default)"
+    echo "  boot         Build and activate on next reboot"
+    echo "  test         Build and activate temporarily (no boot entry)"
+    echo "  dry-activate Build and show what would change"
+    echo "  build        Build only, don't deploy"
+    echo ""
+    echo "Requirements:"
+    echo "  - aarch64-linux build support (one of):"
+    echo "    * binfmt/qemu: boot.binfmt.emulatedSystems = [\"aarch64-linux\"]"
+    echo "    * Remote aarch64 builder in nix.buildMachines"
+    echo "  - SSH access to Pi (run './deploy ssh' to test)"
+    echo ""
+    echo "Examples:"
+    echo "  $0              # Build and deploy"
+    echo "  $0 boot         # Build, activate on reboot"
+    echo "  $0 build        # Build only (test compilation)"
+    exit 1
+}
+
+# Check for help flag
+case "${ACTION}" in
+    -h|--help|help)
+        usage
+        ;;
+esac
+
+# Validate action
+case "${ACTION}" in
+    switch|boot|test|dry-activate|build)
+        ;;
+    *)
+        error "Unknown action: ${ACTION}"
+        usage
+        ;;
+esac
+
+# Check if we can build aarch64
+check_aarch64_support() {
+    info "Checking aarch64-linux build support..."
+
+    # Check if we're already on aarch64
+    if [[ "$(uname -m)" == "aarch64" ]]; then
+        info "Running on aarch64 natively"
+        return 0
+    fi
+
+    # Check for binfmt registration
+    if [[ -f /proc/sys/fs/binfmt_misc/aarch64 ]] || \
+       [[ -f /proc/sys/fs/binfmt_misc/aarch64-linux ]]; then
+        info "binfmt/qemu aarch64 emulation available"
+        return 0
+    fi
+
+    # Check nix.conf for remote builders (best effort)
+    if grep -q "aarch64-linux" ~/.config/nix/nix.conf 2>/dev/null || \
+       grep -q "aarch64-linux" /etc/nix/nix.conf 2>/dev/null; then
+        info "Remote aarch64 builder configured"
+        return 0
+    fi
+
+    # Check extra-platforms in nix config
+    if nix show-config 2>/dev/null | grep -q "extra-platforms.*aarch64-linux"; then
+        info "aarch64-linux in extra-platforms"
+        return 0
+    fi
+
+    warn "Could not verify aarch64-linux build support"
+    warn "Build may fail. Enable with: boot.binfmt.emulatedSystems = [\"aarch64-linux\"]"
+    echo ""
+    read -p "Continue anyway? [y/N] " -n 1 -r
+    echo
+    [[ $REPLY =~ ^[Yy]$ ]] || exit 1
+}
+
+# Test SSH connectivity
+check_ssh() {
+    info "Testing SSH connection to ${TARGET}..."
+    if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "${TARGET}" "true" 2>/dev/null; then
+        warn "Could not connect to ${TARGET}, trying IP (${IP})..."
+        TARGET="${USER}@${IP}"
+        if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "${TARGET}" "true" 2>/dev/null; then
+            error "Cannot connect to Pi via SSH"
+            echo "  Tried: ${USER}@${HOST}.local and ${USER}@${IP}"
+            echo "  Make sure the Pi is running and SSH is enabled"
+            exit 1
+        fi
+    fi
+    info "SSH connection OK"
+}
+
+# Build the system
+build_system() {
+    info "Building NixOS configuration for rpi3..."
+    info "This may take a while (cross-compiling or emulating aarch64)..."
+    echo ""
+
+    # Build the toplevel system derivation
+    nix build .#nixosConfigurations.rpi3.config.system.build.toplevel \
+        --print-build-logs \
+        --show-trace \
+        "$@"
+
+    RESULT=$(readlink -f result)
+    info "Build complete: ${RESULT}"
+}
+
+# Deploy to Pi
+deploy_system() {
+    local result_path="$1"
+    local action="$2"
+
+    info "Copying system to ${TARGET}..."
+
+    # Copy the closure to the Pi
+    # remote-program=sudo%20nix-daemon forces the remote side to run as root
+    # This bypasses the requirement for the user to be trusted
+    nix copy --to "ssh-ng://${TARGET}?remote-program=sudo%20nix-daemon" "${result_path}"
+
+    if [[ "${action}" == "build" ]]; then
+        info "Build-only mode, skipping activation"
+        return 0
+    fi
+
+    info "Activating system (${action})..."
+
+    # Set the system profile and switch
+    ssh -t "${TARGET}" bash -c "'
+        set -euo pipefail
+        sudo nix-env -p /nix/var/nix/profiles/system --set \"${result_path}\"
+        sudo \"${result_path}/bin/switch-to-configuration\" \"${action}\"
+    '"
+
+    info "Deployment complete!"
+
+    if [[ "${action}" == "boot" ]]; then
+        warn "System will activate on next reboot"
+        echo "  Run: ./deploy ssh then 'sudo reboot'"
+    elif [[ "${action}" == "test" ]]; then
+        warn "System activated temporarily (will revert on reboot)"
+    elif [[ "${action}" == "dry-activate" ]]; then
+        info "Dry run complete - no changes made"
+    fi
+}
+
+# Main
+main() {
+    echo ""
+    info "Deploy-Build: Remote NixOS builder for Raspberry Pi"
+    echo ""
+
+    check_aarch64_support
+
+    if [[ "${ACTION}" != "build" ]]; then
+        check_ssh
+    fi
+
+    echo ""
+    build_system
+
+    RESULT_PATH=$(readlink -f result)
+
+    echo ""
+    deploy_system "${RESULT_PATH}" "${ACTION}"
+
+    echo ""
+    info "Done! Run './deploy system-info' to verify."
+}
+
+main "$@"

@@ -81,6 +81,13 @@ in
       echo "=== Current Generation ==="
       sudo nix-env --list-generations --profile /nix/var/nix/profiles/system | tail -5
       echo ""
+      echo "=== Memory & Swap ==="
+      free -h
+      echo ""
+      if [[ -f /sys/block/zram0/comp_algorithm ]]; then
+        echo "zram: $(cat /sys/block/zram0/comp_algorithm 2>/dev/null | tr -d '[]')"
+      fi
+      echo ""
       echo "=== Disk Usage ==="
       df -h / /nix 2>/dev/null || df -h /
       echo ""
@@ -101,6 +108,9 @@ in
       echo "  cleanup        Garbage collect and optimize store"
       echo "  system-info    Show system status and disk usage"
       echo "  ha-help        Show this help"
+      echo ""
+      echo "Low memory (OOM during rebuild)?"
+      echo "  Use './deploy-remote' from workstation to build remotely."
     '')
   ];
 }

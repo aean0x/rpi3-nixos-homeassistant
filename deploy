@@ -19,12 +19,14 @@ usage() {
     echo "  <command>     Run any Pi command remotely (see 'help')"
     echo ""
     echo "Examples:"
-    echo "  $0 rebuild        # Rebuild from remote flake"
+    echo "  $0 rebuild        # Rebuild from remote flake (on Pi)"
     echo "  $0 rebuild-update # Update and rebuild"
     echo "  $0 rebuild-reboot # Rebuild and reboot"
     echo "  $0 rebuild-log    # View last rebuild log"
     echo "  $0 system-info    # Show system status"
     echo "  $0 ssh            # Interactive session"
+    echo ""
+    echo "Low memory? Use './deploy-remote' to build on workstation instead."
     exit 1
 }
 
