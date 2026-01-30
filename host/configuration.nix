@@ -25,8 +25,6 @@
     ];
     defaultGateway = settings.network.gateway;
     nameservers = [ settings.network.dns ];
-    firewall.allowedTCPPorts = [
-    ];
   };
 
   # ===================
@@ -88,7 +86,11 @@
   # ===================
   # Nix Configuration
   # ===================
-  nix.settings.trusted-users = [ "root" "@wheel" ];
+  nix.settings.trusted-users = [ "@wheel" ];
 
+  # ===================
+  # System
+  # ===================
+  time.timeZone = settings.timeZone;
   system.stateVersion = settings.stateVersion;
 }

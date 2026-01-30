@@ -16,18 +16,18 @@
         "type": "github"
       }
     },
-    "nixpkgs-otbr": {
+    "nixpkgs-unstable": {
       "locked": {
-        "lastModified": 1766776257,
-        "narHash": "sha256-MG9DnzBn6TdAztaMPVhW9sjYj2bi9Jcux0F0fJ6LeO4=",
-        "owner": "mrene",
+        "lastModified": 1769461804,
+        "narHash": "sha256-msG8SU5WsBUfVVa/9RPLaymvi5bI8edTavbIq3vRlhI=",
+        "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "0c4c97066d555b7d27a0a56ee400130ec51f02ee",
+        "rev": "bfc1b8a4574108ceef22f02bafcf6611380c100d",
         "type": "github"
       },
       "original": {
-        "owner": "mrene",
-        "ref": "openthread-border-router",
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -35,7 +35,7 @@
     "root": {
       "inputs": {
         "nixpkgs": "nixpkgs",
-        "nixpkgs-otbr": "nixpkgs-otbr",
+        "nixpkgs-unstable": "nixpkgs-unstable",
         "sops-nix": "sops-nix"
       }
     },

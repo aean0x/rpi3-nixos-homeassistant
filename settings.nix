@@ -8,6 +8,7 @@ in
   # System identification
   hostName = "homeassistant";
   description = "Raspberry Pi 3 Home Assistant";
+  timeZone = "Europe/Berlin";
 
   # Admin user
   adminUser = "user";
@@ -40,7 +41,11 @@ in
 
   # Service ports
   haPort = 8123;
-  otbrPort = 8081;
+  otbrPort = 8082;
+  matterPort = 5580;
+  piholeWebPort = 3000;
+  piholeDnsPort = 53;
+  homepagePort = 80;
 
   # Hardware
   # Find with: ls /dev/serial/by-id/

@@ -157,7 +157,7 @@ deploy_system() {
     # Copy the closure to the Pi
     # remote-program=sudo%20nix-daemon forces the remote side to run as root
     # This bypasses the requirement for the user to be trusted
-    nix copy --to "ssh-ng://${TARGET}?remote-program=sudo%20nix-daemon" "${result_path}"
+    nix copy --to "ssh-ng://${TARGET}?remote-program=sudo%20nix-daemon" --no-check-sigs "${result_path}"
 
     if [[ "${action}" == "build" ]]; then
         info "Build-only mode, skipping activation"

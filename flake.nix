@@ -3,7 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
-    nixpkgs-otbr.url = "github:mrene/nixpkgs/openthread-border-router";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     sops-nix = {
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -14,16 +14,14 @@
     {
       self,
       nixpkgs,
-      nixpkgs-otbr,
+      nixpkgs-unstable,
       sops-nix,
       ...
     }@inputs:
     let
       settings = import ./settings.nix;
       system = "aarch64-linux";
-
-      # OTBR packages from the fork
-      pkgs-otbr = import nixpkgs-otbr { inherit system; };
+      unstable = import nixpkgs-unstable { inherit system; };
 
       # Key file path for SD image (passed via environment)
       keyFilePath = builtins.getEnv "KEY_FILE_PATH";
@@ -34,7 +32,11 @@
       nixosConfigurations.rpi3 = nixpkgs.lib.nixosSystem {
         inherit system;
         specialArgs = {
-          inherit inputs settings pkgs-otbr;
+          inherit
+            inputs
+            settings
+            unstable
+            ;
         };
         modules = [
           # SD image support for RPi3
@@ -43,12 +45,10 @@
           # SOPS secrets
           sops-nix.nixosModules.sops
 
-          # OTBR module from fork
-          "${nixpkgs-otbr}/nixos/modules/services/home-automation/openthread-border-router.nix"
-
           # System configuration
           ./host/configuration.nix
           ./host/services.nix
+          ./host/homepage.nix
 
           # Inject SOPS key into SD image (only when KEY_FILE_PATH is set during build)
           (
